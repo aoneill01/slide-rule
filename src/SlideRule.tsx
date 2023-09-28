@@ -1,11 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import './SlideRule.css';
+import { MouseEvent, MouseEventHandler, useCallback, useEffect, useRef, useState } from "react";
+import "./SlideRule.css";
+
+type Point = {
+  x: number;
+  y: number;
+};
+
+type DragState = {
+  dragging: boolean;
+  start: Point | null;
+  position: any;
+  mode: string | null;
+};
+
+type WithClientPosition = {
+  clientX: number;
+  clientY: number;
+};
 
 const initViewBox = {
   x: -10,
   y: 0,
   w: 120,
-  h: 80
+  h: 80,
 };
 
 export default function SlideRule() {
@@ -13,21 +30,21 @@ export default function SlideRule() {
   const [viewBox, setViewBox] = useState(initViewBox);
   const [slideOffset, setSlideOffset] = useState(0);
   const [cursorOffset, setCursorOffset] = useState(50);
-  const dragState = useRef({
+  const dragState = useRef<DragState>({
     dragging: false,
     start: null,
     position: null,
-    mode: null
+    mode: null,
   });
   const ab = useCallback(abScale, []);
   const cd = useCallback(cdScale, []);
 
-  const localPoint = (event: WheelEvent) => {
+  const localPoint = (event: WithClientPosition) => {
     var pt = svgRef.current!.createSVGPoint();
     pt.x = event.clientX;
     pt.y = event.clientY;
     return pt.matrixTransform(svgRef.current!.getScreenCTM()!.inverse());
-  }
+  };
 
   useEffect(() => {
     const handleWheel = (event: WheelEvent) => {
@@ -35,7 +52,7 @@ export default function SlideRule() {
 
       const scale = event.deltaY < 0 ? 1.15 : 1 / 1.15;
       const transformed = localPoint(event);
-      setViewBox(current => {
+      setViewBox((current) => {
         const w = Math.min(initViewBox.w, current.w / scale);
         const h = Math.min(initViewBox.h, current.h / scale);
         const idealX = current.x + (transformed.x - current.x) * (1 - 1 / scale);
@@ -44,20 +61,22 @@ export default function SlideRule() {
           w,
           h,
           x: clip(idealX, initViewBox.x, initViewBox.x + initViewBox.w - w),
-          y: clip(idealY, initViewBox.y, initViewBox.y + initViewBox.h - h)
-        }
+          y: clip(idealY, initViewBox.y, initViewBox.y + initViewBox.h - h),
+        };
       });
     };
 
     // Assume that svg ref always exists and doesn't change.
-    const svg = svgRef.current;
+    const svg = svgRef.current!;
     // React doesn't use `passive: false`, so we can't use `onWheel`
     svg.addEventListener("wheel", handleWheel, { passive: false });
 
-    return () => svg.removeEventListener("wheel", handleWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", handleWheel);
   }, []);
 
-  const handleStartDrag = (event) => {
+  const handleStartDrag = (event: MouseEvent<SVGSVGElement>) => {
+    if (!event.target || !(event.target instanceof Element)) return;
+
     if (event.target.classList.contains("slide")) {
       dragState.current.mode = "slide";
       dragState.current.position = slideOffset;
@@ -72,30 +91,33 @@ export default function SlideRule() {
     dragState.current.dragging = true;
   };
 
-  const handleDrag = (event) => {
+  const handleDrag = (event: MouseEvent<SVGSVGElement>) => {
     if (!dragState.current.dragging) return;
 
     const pointer = localPoint(event);
 
     if (dragState.current.mode === "slide") {
-      setSlideOffset(clip(dragState.current.position + pointer.x - dragState.current.start.x, -100, 100));
+      setSlideOffset(clip(dragState.current.position + pointer.x - dragState.current.start!.x, -100, 100));
     } else if (dragState.current.mode === "cursor") {
-      setCursorOffset(clip(dragState.current.position + pointer.x - dragState.current.start.x, 0, 100));
+      setCursorOffset(clip(dragState.current.position + pointer.x - dragState.current.start!.x, 0, 100));
     } else if (dragState.current.mode === "body") {
-      const idealX = dragState.current.position.x - (pointer.x + (dragState.current.position.x - viewBox.x) - dragState.current.start.x);
-      const idealY = dragState.current.position.y - (pointer.y + (dragState.current.position.y - viewBox.y) - dragState.current.start.y);
+      const idealX =
+        dragState.current.position.x -
+        (pointer.x + (dragState.current.position.x - viewBox.x) - dragState.current.start!.x);
+      const idealY =
+        dragState.current.position.y -
+        (pointer.y + (dragState.current.position.y - viewBox.y) - dragState.current.start!.y);
       setViewBox({
         ...dragState.current.position,
         x: clip(idealX, initViewBox.x, initViewBox.x + initViewBox.w - dragState.current.position.w),
-        y: clip(idealY, initViewBox.y, initViewBox.y + initViewBox.h - dragState.current.position.h)
+        y: clip(idealY, initViewBox.y, initViewBox.y + initViewBox.h - dragState.current.position.h),
       });
     }
   };
 
-  const handleStopDrag = (event) => {
+  const handleStopDrag = (event: MouseEvent<SVGSVGElement>) => {
     handleDrag(event);
     dragState.current.dragging = false;
-    // dragState.current.start = null;
     dragState.current.mode = null;
   };
 
@@ -112,24 +134,39 @@ export default function SlideRule() {
       <g transform={`translate(${slideOffset} 0)`}>
         <rect className="slide" rx="1" ry="1" x="-8" y="35" width="116" height="10" fill="#F7C88C" />
         <g className="no-pointer-events">
-          <text x="-2" y="37.7" className="label-major">B</text>
-          <text x="-2" y="43.5" className="label-major">C</text>
-          {cd().map((props, i) => <Mark {...props} y={45} flipped key={i} />)}
-          {ab().map((props, i) => <Mark {...props} y={35} key={i} />)}
+          <text x="-2" y="37.7" className="label-major">
+            B
+          </text>
+          <text x="-2" y="43.5" className="label-major">
+            C
+          </text>
+          {cd().map((props, i) => (
+            <Mark {...props} y={45} flipped key={i} />
+          ))}
+          {ab().map((props, i) => (
+            <Mark {...props} y={35} key={i} />
+          ))}
         </g>
       </g>
 
-
       <rect x="-3" y="25" width="106" height="10" fill="#FCDDB5" />
       <g className="no-pointer-events">
-        <text x="-2" y="33.5" className="label-major">A</text>
-        {ab().map((props, i) => <Mark {...props} y={35} flipped key={i} />)}
+        <text x="-2" y="33.5" className="label-major">
+          A
+        </text>
+        {ab().map((props, i) => (
+          <Mark {...props} y={35} flipped key={i} />
+        ))}
       </g>
 
       <rect x="-3" y="45" width="106" height="10" fill="#FCDDB5" />
       <g className="no-pointer-events">
-        <text x="-2" y="47.7" className="label-major">D</text>
-        {cd().map((props, i) => <Mark {...props} y={45} key={i} />)}
+        <text x="-2" y="47.7" className="label-major">
+          D
+        </text>
+        {cd().map((props, i) => (
+          <Mark {...props} y={45} key={i} />
+        ))}
       </g>
 
       <path d="M -3 25 v 30 h -4 a 1 1 0 0 1 -1 -1 v -8 a 7 7 1 0 0 0 -12 v -8 a 1 1 0 0 1 1 -1 Z" fill="silver" />
@@ -137,33 +174,60 @@ export default function SlideRule() {
 
       <g transform={`translate(${cursorOffset} 0)`}>
         <line x1="0" y1="25" x2="0" y2="55" stroke="red" strokeWidth=".08" />
-        <rect className="cursor" x="-5" y="24.75" width="10" height="30.5" fill="#FFFFFF44" stroke="silver" strokeWidth=".5" />
+        <rect
+          className="cursor"
+          x="-5"
+          y="24.75"
+          width="10"
+          height="30.5"
+          fill="#FFFFFF44"
+          stroke="silver"
+          strokeWidth=".5"
+        />
       </g>
     </svg>
-  )
+  );
 }
 
-function Mark({ type, value, label, y, flipped }) {
+interface MarkProps {
+  type: string;
+  value: number;
+  label?: string | number;
+  y: number;
+  flipped?: boolean;
+}
+
+function Mark({ type, value, label, y, flipped = false }: MarkProps) {
   const length = () => {
     const sign = flipped ? -1 : 1;
     switch (type) {
-      case "primary": return sign * 1.25;
-      case "secondary": return sign * 1.5;
-      case "tertiary": return sign * 1;
-      default: return sign * .5;
+      case "primary":
+        return sign * 1.25;
+      case "secondary":
+        return sign * 1.5;
+      case "tertiary":
+        return sign * 1;
+      default:
+        return sign * 0.5;
     }
-  }
+  };
   if (!label) {
-    return <line x1={100 * value} y1={y} x2={100 * value} y2={y + length()} stroke="black" strokeWidth=".08" />
+    return <line x1={100 * value} y1={y} x2={100 * value} y2={y + length()} stroke="black" strokeWidth=".08" />;
   } else {
-    return <g>
-      <line x1={100 * value} y1={y} x2={100 * value} y2={y + length()} stroke="black" strokeWidth=".08" />
-      {
-        type === "primary"
-          ? <text x={100 * value} y={y + (flipped ? -1.5 : 2.7)} textAnchor="middle" className="label-major">{label}</text>
-          : <text x={100 * value + .1} y={y + (flipped ? -1.5 : 2.3)} textAnchor="left" className="label-minor">{label}</text>
-      }
-    </g>
+    return (
+      <g>
+        <line x1={100 * value} y1={y} x2={100 * value} y2={y + length()} stroke="black" strokeWidth=".08" />
+        {type === "primary" ? (
+          <text x={100 * value} y={y + (flipped ? -1.5 : 2.7)} textAnchor="middle" className="label-major">
+            {label}
+          </text>
+        ) : (
+          <text x={100 * value + 0.1} y={y + (flipped ? -1.5 : 2.3)} textAnchor="left" className="label-minor">
+            {label}
+          </text>
+        )}
+      </g>
+    );
   }
 }
 
@@ -174,28 +238,28 @@ function cdScale() {
     marks.push({
       type: "primary",
       value: Math.log10(i),
-      label: i === 10 ? 1 : i
+      label: i === 10 ? 1 : i,
     });
 
     switch (i) {
       case 1: {
         for (let j = 1; j < 100; j++) {
-          const value = Math.log10(1 + .01 * j);
+          const value = Math.log10(1 + 0.01 * j);
           if (j % 10 === 0) {
             marks.push({
               type: "secondary",
               value,
-              label: j / 10
+              label: j / 10,
             });
           } else if (j % 5 === 0) {
             marks.push({
               type: "tertiary",
-              value
+              value,
             });
           } else {
             marks.push({
               type: "quarternary",
-              value
+              value,
             });
           }
         }
@@ -204,44 +268,45 @@ function cdScale() {
       case 2:
       case 3: {
         for (let j = 1; j < 50; j++) {
-          const value = Math.log10(i + .02 * j);
+          const value = Math.log10(i + 0.02 * j);
           if (j % 25 === 0) {
             marks.push({
               type: "secondary",
-              value
+              value,
             });
           } else if (j % 5 === 0) {
             marks.push({
               type: "tertiary",
-              value
+              value,
             });
           } else {
             marks.push({
               type: "quarternary",
-              value
+              value,
             });
           }
         }
         break;
       }
-      case 10: break;
+      case 10:
+        break;
       default: {
         for (let j = 1; j < 20; j++) {
-          const value = Math.log10(i + .05 * j);
+          const value = Math.log10(i + 0.05 * j);
           if (j % 10 === 0) {
             marks.push({
               type: "secondary",
-              value
+              value,
             });
           } else if (j % 2 === 0) {
             marks.push({
               type: "tertiary",
-              value
+              value,
             });
           } else {
             marks.push({
               type: "quarternary",
-              value
+              value,
             });
           }
         }
@@ -253,7 +318,7 @@ function cdScale() {
   marks.push({
     type: "secondary",
     value: Math.log10(Math.PI),
-    label: "π"
+    label: "π",
   });
 
   return marks;
@@ -266,48 +331,48 @@ function abScale() {
     marks.push({
       type: "primary",
       value: Math.log10(Math.sqrt(i)),
-      label: i === 10 ? 1 : i
+      label: i === 10 ? 1 : i,
     });
 
     if (i !== 1) {
       marks.push({
         type: "primary",
         value: Math.log10(Math.sqrt(10 * i)),
-        label: i === 10 ? 1 : i
+        label: i === 10 ? 1 : i,
       });
     }
 
     switch (i) {
       case 1: {
         for (let j = 1; j < 50; j++) {
-          const value = Math.log10(Math.sqrt(1 + .02 * j));
-          const value2 = Math.log10(Math.sqrt(10 * (1 + .02 * j)));
+          const value = Math.log10(Math.sqrt(1 + 0.02 * j));
+          const value2 = Math.log10(Math.sqrt(10 * (1 + 0.02 * j)));
           if (j % 25 === 0) {
             marks.push({
               type: "secondary",
-              value
+              value,
             });
             marks.push({
               type: "secondary",
-              value: value2
+              value: value2,
             });
           } else if (j % 5 === 0) {
             marks.push({
               type: "tertiary",
-              value
+              value,
             });
             marks.push({
               type: "tertiary",
-              value: value2
+              value: value2,
             });
           } else {
             marks.push({
               type: "quarternary",
-              value
+              value,
             });
             marks.push({
               type: "quarternary",
-              value: value2
+              value: value2,
             });
           }
         }
@@ -317,61 +382,62 @@ function abScale() {
       case 3:
       case 4: {
         for (let j = 1; j < 20; j++) {
-          const value = Math.log10(Math.sqrt(i + .05 * j));
-          const value2 = Math.log10(Math.sqrt(10 * (i + .05 * j)));
+          const value = Math.log10(Math.sqrt(i + 0.05 * j));
+          const value2 = Math.log10(Math.sqrt(10 * (i + 0.05 * j)));
           if (j % 10 === 0) {
             marks.push({
               type: "secondary",
-              value
+              value,
             });
             marks.push({
               type: "secondary",
-              value: value2
+              value: value2,
             });
           } else if (j % 2 === 0) {
             marks.push({
               type: "tertiary",
-              value
+              value,
             });
             marks.push({
               type: "tertiary",
-              value: value2
+              value: value2,
             });
           } else {
             marks.push({
               type: "quarternary",
-              value
+              value,
             });
             marks.push({
               type: "quarternary",
-              value: value2
+              value: value2,
             });
           }
         }
         break;
       }
-      case 10: break;
+      case 10:
+        break;
       default: {
         for (let j = 1; j < 20; j++) {
-          const value = Math.log10(Math.sqrt(i + .05 * j));
-          const value2 = Math.log10(Math.sqrt(10 * (i + .05 * j)));
+          const value = Math.log10(Math.sqrt(i + 0.05 * j));
+          const value2 = Math.log10(Math.sqrt(10 * (i + 0.05 * j)));
           if (j % 10 === 0) {
             marks.push({
               type: "secondary",
-              value
+              value,
             });
             marks.push({
               type: "secondary",
-              value: value2
+              value: value2,
             });
           } else if (j % 2 === 0) {
             marks.push({
               type: "tertiary",
-              value
+              value,
             });
             marks.push({
               type: "tertiary",
-              value: value2
+              value: value2,
             });
           }
         }
