@@ -1,13 +1,16 @@
-## Running React on Repl.it
+# Slide Rule
 
-[React](https://reactjs.org/) is a popular JavaScript library for building user interfaces.
+This is a slide rule that you can use in your web browser. Scroll wheel is used for zooming, mouse dragging will move the slide and cursor.
 
-[Vite](https://vitejs.dev/) is a blazing fast frontend build tool that includes features like Hot Module Reloading (HMR), optimized builds, and TypeScript support out of the box.
+See it in action at [aoneill01.github.io/slide-rule/](https://aoneill01.github.io/slide-rule/).
 
-Using the two in conjunction is one of the fastest ways to build a web app.
+[github.com/aoneill01/sliderule](https://github.com/aoneill01/sliderule) contains an earlier version.
 
-### Getting Started
-- Hit run
-- Edit [App.tsx](#src/App.tsx) and watch it live update!
+## Running locally
 
-By default, Replit runs the `dev` script, but you can configure it by changing the `run` field in the [configuration file](#.replit). Here are the vite docs for [serving production websites](https://vitejs.dev/guide/build.html)
+Requires [Node.js](https://nodejs.org/).
+
+```bash
+npm install
+npm run dev
+```
